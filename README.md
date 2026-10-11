@@ -16,6 +16,38 @@ It comes in two forms that share the same code:
 > - Results contain other people's comments. Keep the CSVs and the database private, and keep
 >   the web page (which has no login) on your home network.
 
+## Where the idea came from
+
+I found this in the wild, on my phone. Tap a commenter's picture in YouTube and a profile card
+slides up with their recent comments **on that channel**. One commenter's card showed the same
+paragraph, almost word for word, under three unrelated videos:
+
+<p>
+  <img src="docs/images/profile-card-phone.png" width="300"
+       alt="A YouTube profile card on a phone. Under 'Recent comments on this channel' it lists three comments on three different videos, all starting with the same sentence.">
+  <img src="docs/images/profile-card-web.png" width="300" align="top"
+       alt="A YouTube profile card on the web. Its three recent comments on two different videos all begin with the same words.">
+</p>
+
+*Left: the phone screenshot that started it. Right: another account, seen on the web. The
+commenters' names and pictures are covered.*
+
+Checking commenters one at a time like that works, but it is slow. botornot does the same check
+for every commenter on a channel.
+
+> [!NOTE]
+> **How it really works.** That card comes from a single internal YouTube endpoint:
+>
+> ```
+> POST https://www.youtube.com/youtubei/v1/account/get_profile_card
+> ```
+>
+> It answers without a login. The request names the commenter and carries a small token saying
+> which channel the card is being viewed on, and that channel decides which comments are listed.
+> botornot calls it once per commenter, then compares the comments on the card with the ones the
+> commenter left on the videos and posts it read. `card_context()` and `profile_card()` in
+> `botornot.py` are the whole trick.
+
 ## Using it responsibly
 
 - Treat a score as a reason to look, never as proof. Real people repeat themselves, share
@@ -165,6 +197,7 @@ and syntax-checks the playbooks (`.github/workflows/ci.yml`).
 | `Dockerfile`, `compose.yaml` | The container images and how they run together |
 | `ansible/` | The deploy and manage playbooks, their shared settings, an example inventory |
 | `tests/` | The test suite |
+| `docs/images/` | The screenshots in this README |
 | `requirements*.txt` | Packages: the tool, the service, the meaning check, the tests |
 | `CLAUDE.md` | Working notes: how the endpoints behave, what has been tested, open questions |
 

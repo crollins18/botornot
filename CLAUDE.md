@@ -13,6 +13,7 @@ Goal: judge whether a YouTube commenter is a bot, using the comments they leave.
 - `tests/` – pytest suite (about a second, no network: every YouTube reply is faked; `tests/fixtures/profile_card.json` is made up). `requirements-dev.txt` is pytest.
 - `.github/workflows/ci.yml` – GitHub Actions on every push: the tests on Python 3.14 (the image's version), a build of the small image, and a syntax check of both playbooks.
 - `README.md`, `LICENSE` (GPL-3.0-or-later), `.gitignore`.
+- `docs/images/` – the two profile-card screenshots in the README (the phone one is how the project started). The commenters' pictures, names and handles are covered; any image added here must have the same done.
 - `<@handle>.csv`, `<ID>.csv` – scan results. Each run overwrites the file for that channel, video or post.
 
 ## How it works (all anonymous: no API key, no cookies; the command-line tool stores nothing between runs except the downloaded `--meaning` model)
