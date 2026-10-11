@@ -352,3 +352,26 @@ def test_posts_from_other_sites_are_refused(service):
     assert service.post("/api/lease", json={"worker": "x"}, headers={"Origin": "null"}).status_code == 403
     assert service.get("/", headers={"Origin": "https://evil.example"}).status_code == 200  # reading is harmless
     assert service.post("/channels/1/delete", headers={"Origin": "http://localhost"}).status_code == 302  # our own page
+
+
+def test_only_live_workers_are_listed(service):
+    add(service)
+    service.post("/channels/1/scan")
+    now = orchestrator.time.time()
+    with orchestrator.db() as con:  # two workers from before a redeploy: one long gone, one seen two minutes ago
+        con.execute("INSERT INTO workers (name, last_seen, units_done) VALUES ('dead-container', ?, 40), ('recently-gone', ?, 7)",
+                    (now - 7200, now - 120))
+    service.post("/api/lease", json={"worker": "idle-one"})           # takes the channel unit ...
+    with orchestrator.db() as con:                                    # ... and has been busy with it for five minutes
+        con.execute("UPDATE workers SET last_seen = ? WHERE name = 'idle-one'", (now - 300,))
+        con.execute("UPDATE workers SET name = 'busy-one' WHERE name = 'idle-one'")
+        con.execute("UPDATE units SET worker = 'busy-one' WHERE worker = 'idle-one'")
+    service.post("/api/lease", json={"worker": "fresh-one"})          # nothing for it to do, but it just asked
+    page = service.get("/").get_data(as_text=True)
+    assert "<b>2</b><span class=\"muted small\">workers online" in page
+    assert "fresh-one" in page and "waiting for work" in page
+    assert "busy-one" in page and "working on a channel unit of" in page  # silent while it works, but not dead
+    assert "dead-container" not in page and "recently-gone" not in page
+    with orchestrator.db() as con:  # the hourly clean-up drops the one long gone
+        con.execute("DELETE FROM workers WHERE last_seen < ?", (now - orchestrator.WORKER_FORGOTTEN,))
+        assert {w["name"] for w in con.execute("SELECT name FROM workers")} == {"recently-gone", "busy-one", "fresh-one"}

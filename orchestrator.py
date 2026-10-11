@@ -55,7 +55,8 @@ LEASE_TIMEOUT = 900        # seconds a worker may hold a unit before it is hande
 UNIT_ATTEMPTS = 2          # times a unit is tried before it counts as failed
 # seconds between a page's own refreshes: while a scan runs, otherwise, and for pages whose data rarely changes
 LIVE_BUSY, LIVE_IDLE, LIVE_SETTLED = 3, 5, 15
-WORKER_ONLINE = 60         # a worker that asked for work within this many seconds counts as online
+WORKER_ONLINE = 60         # a worker counts as live if it asked for work within this many seconds, or holds a unit
+WORKER_FORGOTTEN = 3600    # a worker not heard from for this long is dropped from the database
 FIRST_PAUSE = 60           # seconds nothing is handed out after trouble; doubles while trouble repeats
 LONGEST_PAUSE = 3600
 KEPT_EVENTS = 500          # entries kept in the activity record on the settings page
@@ -374,7 +375,7 @@ def scheduler():
                         "SELECT * FROM channels c WHERE enabled AND every_hours > 0 AND next_run <= ? AND NOT EXISTS "
                         "(SELECT 1 FROM scans WHERE channel_id = c.id AND status = 'running')", (time.time(),)).fetchall():
                     start_scan(con, channel, "scheduled")
-                con.execute("DELETE FROM workers WHERE last_seen < ?", (time.time() - 86400,))
+                con.execute("DELETE FROM workers WHERE last_seen < ?", (time.time() - WORKER_FORGOTTEN,))
         except Exception:
             log.exception("the scheduler hit an error; it carries on")
         time.sleep(20)
@@ -464,12 +465,15 @@ def index():
             "SELECT * FROM scans WHERE id IN (SELECT MAX(id) FROM scans GROUP BY channel_id)")}
         scans = con.execute(f"SELECT {SCAN_COLUMNS} FROM scans s JOIN channels c ON c.id = s.channel_id "
                             "ORDER BY s.id DESC LIMIT 25").fetchall()
-        workers = con.execute("SELECT * FROM workers ORDER BY name").fetchall()
+        # live workers only: every redeploy starts containers with new names, and the old ones never come back
+        workers = con.execute(
+            "SELECT w.*, u.kind AS doing, u.scan_id AS doing_scan FROM workers w "
+            "LEFT JOIN units u ON u.worker = w.name AND u.status = 'leased' "
+            "WHERE w.last_seen > ? OR u.id IS NOT NULL GROUP BY w.name ORDER BY w.name", (now - WORKER_ONLINE,)).fetchall()
         queue = dict(con.execute("SELECT status, COUNT(*) FROM units WHERE status IN ('queued', 'leased') GROUP BY status").fetchall())
         paused = get_state(con, "paused_until") - now
         paused_why = get_state(con, "paused_why", "")
     return render_template("index.html", channels=channels, last=last, scans=scans, workers=workers, queue=queue,
-                           online=[w for w in workers if now - w["last_seen"] < WORKER_ONLINE],
                            paused=paused, paused_why=paused_why, error=request.args.get("error"),
                            refresh=LIVE_BUSY if queue else LIVE_IDLE)
 

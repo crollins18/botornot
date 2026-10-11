@@ -6,10 +6,10 @@
 <div class="banner warn">Paused for another {{ (paused / 60)|round(1) }} min: {{ paused_why }}
   <form class="inline" method="post" action="{{ url_for('resume') }}"><button>Resume now</button></form></div>
 {% endif %}
-{% if not online %}<div class="banner bad">No worker has asked for work in the last minute, so nothing will be scanned.</div>{% endif %}
+{% if not workers %}<div class="banner bad">No workers are online, so nothing will be scanned.</div>{% endif %}
 
 <div class="card stats">
-  <div class="stat"><b>{{ online|length }}</b><span class="muted small">workers online</span></div>
+  <div class="stat"><b>{{ workers|length }}</b><span class="muted small">workers online</span></div>
   <div class="stat"><b>{{ queue.get('leased', 0) }}</b><span class="muted small">units in progress</span></div>
   <div class="stat"><b>{{ queue.get('queued', 0) }}</b><span class="muted small">units waiting</span></div>
   <div class="stat"><b>{{ channels|length }}</b><span class="muted small">targets</span></div>
@@ -52,11 +52,13 @@
 <h2>Recent scans</h2>
 <div id="live-scans" data-live>{% set show_channel = true %}{% include "_scans.html" %}</div>
 
-<h2>Workers</h2>
+<h2>Workers online</h2>
 <div id="live-workers" data-live><div class="card scroll"><table>
-<tr><th>Worker</th><th>Last asked for work</th><th class="num">Units done</th></tr>
-{% for w in workers %}<tr><td>{{ w.name }}</td><td>{{ w.last_seen|ago }}</td><td class="num">{{ w.units_done }}</td></tr>
-{% else %}<tr><td colspan="3" class="muted">No workers have connected yet.</td></tr>{% endfor %}
+<tr><th>Worker</th><th>Now</th><th>Last asked for work</th><th class="num">Units done</th></tr>
+{% for w in workers %}<tr><td>{{ w.name }}</td>
+    <td>{% if w.doing %}working on a {{ w.doing }} unit of <a href="{{ url_for('scan_page', scan_id=w.doing_scan) }}">scan #{{ w.doing_scan }}</a>{% else %}waiting for work{% endif %}</td>
+    <td>{{ w.last_seen|ago }}</td><td class="num">{{ w.units_done }}</td></tr>
+{% else %}<tr><td colspan="4" class="muted">No workers are online.</td></tr>{% endfor %}
 </table></div></div>
 <p class="small muted">Scores are heuristics, not verdicts. This page has no login; keep it on your home network.</p>
 {% endblock %}
