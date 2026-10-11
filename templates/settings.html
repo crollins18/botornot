@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Settings · botornot{% endblock %}
+{% block main %}
+<h1>Settings</h1>
+{% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+{% if saved %}<div class="banner good">{{ saved }}</div>{% endif %}
+<p class="muted">These apply to every target from the next unit of work on. Scores of scans already finished do not change.
+  The meaning check is not here: it is off unless you tick it for a target.</p>
+
+<form method="post" action="{{ url_for('save_settings') }}">
+{% for group, dials in groups %}
+<h2>{{ group }}</h2>
+{% if 'Pace' in group %}<div class="banner warn small">Faster settings mean more requests to YouTube from your address and a higher
+  chance of being rate-limited or blocked. The defaults are the fastest pace that has been tested.</div>{% endif %}
+<div class="card scroll"><table>
+{% for name, label, lowest, highest, hint in dials %}
+<tr><td><label for="{{ name }}">{{ label }}</label>{% if hint %}<div class="small muted">{{ hint }}</div>{% endif %}</td>
+    <td><input type="number" id="{{ name }}" name="{{ name }}" value="{{ value(name) }}" min="{{ lowest }}" max="{{ highest }}"
+               step="{{ 1 if lowest is integer else 'any' }}" required></td>
+    <td class="small muted">default {{ defaults[name] }}{% if value(name) != defaults[name] %} · <b>changed</b>{% endif %}<br>{{ lowest }} to {{ highest }}</td></tr>
+{% endfor %}
+</table></div>
+{% endfor %}
+<p class="row"><button class="primary">Save settings</button></p>
+</form>
+<form method="post" action="{{ url_for('reset_settings') }}" onsubmit="return confirm('Put every setting back to its default?')">
+  <button>Reset all to defaults</button></form>
+
+<h2>Start fresh</h2>
+<div class="card">
+  <p id="live-counts" data-live>Delete all {{ counts.scans }} scans and the {{ counts.accounts }} account results in them. Targets, schedules and settings stay.
+     Scans in progress are dropped too. This cannot be undone.</p>
+  <form method="post" action="{{ url_for('clean') }}" onsubmit="return confirm('Delete every scan and all results? This cannot be undone.')">
+    <button class="danger">Delete all scans</button></form>
+</div>
+
+<h2>Recent activity</h2>
+<p class="small muted">What was added, changed, started or deleted on this site, newest first, and the address it came from.
+  Kept across restarts and across "start fresh".</p>
+<div id="live-events" data-live><div class="card scroll"><table>
+<tr><th>When</th><th>From</th><th>What</th></tr>
+{% for e in events %}<tr><td class="small" title="{{ e.ts|stamp }}">{{ e.ts|ago }}</td><td class="small">{{ e.who }}</td><td>{{ e.message }}</td></tr>
+{% else %}<tr><td colspan="3" class="muted">Nothing yet.</td></tr>{% endfor %}
+</table></div></div>
+{% endblock %}

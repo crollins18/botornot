@@ -1,0 +1,8 @@
+# Only needed for --meaning (the local embedding model). Tested with the versions noted.
+# Without an NVIDIA GPU, install the much smaller CPU builds of torch first:
+#   .venv/bin/pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+sentence-transformers>=6.1   # 6.1.0
+transformers>=5.19           # 5.19.0
+torch                        # 2.14.1
+torchvision                  # 0.29.1; the model's processor will not load without it, even for text
+pillow                       # same

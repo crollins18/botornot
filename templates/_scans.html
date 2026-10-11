@@ -1,0 +1,21 @@
+<div class="card scroll"><table>
+<tr><th>Scan</th>{% if show_channel %}<th>Target</th>{% endif %}<th>Started</th><th>Status</th><th>Progress</th>
+    <th class="num">Commenters</th><th class="num">Checked</th><th class="num">Score &gt; 0</th><th>Took</th></tr>
+{% for s in scans %}
+<tr>
+  <td><a href="{{ url_for('scan_page', scan_id=s.id) }}">#{{ s.id }}</a></td>
+  {% if show_channel %}<td><a href="{{ url_for('channel_page', channel_id=s.channel_id) }}">{{ s.channel_name or s.target }}</a></td>{% endif %}
+  <td title="{{ s.started|stamp }}">{{ s.started|ago }}</td>
+  <td><span class="pill {{ s.status }}">{{ s.status }}</span>{% if s.errors %}
+      <a class="pill failed" href="{{ url_for('scan_page', scan_id=s.id) }}#log-title">{{ s.errors }} error{{ 's' if s.errors > 1 }}</a>{% endif %}
+      {% if s.note %}<div class="small muted">{{ s.note }}</div>{% endif %}</td>
+  <td class="small"><div class="bar {{ s.status }}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ s|progress }}"
+      aria-label="Progress of scan {{ s.id }}"><i style="width: {{ s|progress }}%"></i></div>{{ s|progress }}% · {{ s|doing }}</td>
+  <td class="num">{{ s.commenters if s.commenters is not none else '' }}</td>
+  <td class="num">{{ s.checked }}</td>
+  <td class="num">{% if s.flagged %}<span class="score hit">{{ s.flagged }}</span>{% else %}0{% endif %}</td>
+  <td class="small">{{ s|took }}</td>
+</tr>
+{% else %}<tr><td colspan="9" class="muted">No scans yet.</td></tr>
+{% endfor %}
+</table></div>

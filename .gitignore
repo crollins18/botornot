@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+
+# Scan results and the service's database: other people's comments, keep them off the internet
+*.csv
+*.db
+*.db-wal
+*.db-shm
+
+# Browser captures hold live session credentials
+*.har
+
+# Local settings
+.claude/settings.local.json
+ansible/inventory.ini

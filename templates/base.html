@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{% if refresh %}<noscript><meta http-equiv="refresh" content="{{ [refresh, 10]|max }}"></noscript>{% endif %}
+<title>{% block title %}botornot{% endblock %}</title>
+<link rel="icon" href="data:,">
+<style>
+:root { --bg: #f6f7f9; --card: #fff; --text: #1b1f24; --muted: #5f6b7a; --line: #dfe3e8; --accent: #2457c5;
+        --bad: #b42318; --bad-bg: #fde8e6; --warn: #8a5a00; --warn-bg: #fff1cc; --good: #1a7f4b; --good-bg: #dff5e8; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #14171b; --card: #1d2127; --text: #e6e9ed; --muted: #9aa5b1; --line: #313842; --accent: #7aa7ff;
+          --bad: #ff8a80; --bad-bg: #4a1f1c; --warn: #ffcf70; --warn-bg: #45360f; --good: #7ad9a4; --good-bg: #153a27; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, sans-serif; }
+header { padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header a { font-weight: 700; font-size: 18px; color: var(--text); text-decoration: none; }
+header span { color: var(--muted); margin-left: 10px; flex: 1; }
+#live-state { color: var(--bad); margin-right: 8px; }
+header nav a { font-weight: 400; font-size: 15px; color: var(--accent); margin-left: 14px; }
+.banner.good { background: var(--good-bg); color: var(--good); }
+input[type=number] { width: 110px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); font: inherit; }
+main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 22px; margin: 4px 0 12px; } h2 { font-size: 17px; margin: 26px 0 8px; }
+a { color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 13px; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); } .small { font-size: 13px; }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 13px; white-space: nowrap; }
+.pill.running { background: var(--warn-bg); color: var(--warn); } .pill.done { background: var(--good-bg); color: var(--good); }
+.pill.failed, .pill.cancelled { background: var(--bad-bg); color: var(--bad); }
+.score { display: inline-block; min-width: 26px; text-align: center; padding: 1px 6px; border-radius: 6px; font-weight: 700; }
+.score.s0 { color: var(--muted); } .score.hit { background: var(--bad-bg); color: var(--bad); }
+.banner { padding: 10px 14px; border-radius: 8px; margin-bottom: 12px; }
+.banner.warn { background: var(--warn-bg); color: var(--warn); } .banner.bad { background: var(--bad-bg); color: var(--bad); }
+form.inline { display: inline; } .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+input[type=text], select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); font: inherit; }
+input[type=text] { min-width: 260px; flex: 1; }
+button { padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); font: inherit; cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+@media (prefers-color-scheme: dark) { button.primary { color: #14171b; } }
+button.danger { color: var(--bad); }
+details summary { cursor: pointer; color: var(--accent); }
+.comment { margin: 8px 0; padding-left: 10px; border-left: 3px solid var(--line); overflow-wrap: anywhere; min-width: 240px; }
+.comment.match { border-left-color: var(--bad); }
+.comment .match { color: var(--bad); font-weight: 600; }
+.comment a { white-space: nowrap; }
+.bar { height: 8px; min-width: 110px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent); border-radius: 4px; transition: width .6s; }
+.bar.done > i { background: var(--good); } .bar.failed > i, .bar.cancelled > i { background: var(--bad); }
+.bar.big { height: 14px; border-radius: 7px; margin: 4px 0 6px; } .bar.big > i { border-radius: 7px; }
+#log { margin: 0; height: 380px; overflow: auto; padding: 10px 12px; border-radius: 8px; background: #101317; color: #d7dce2;
+       font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+#log .WARNING { color: #ffcf70; } #log .ERROR, #log .CRITICAL { color: #ff8a80; font-weight: 600; } #log .DEBUG { color: #8894a3; }
+.stats { display: flex; flex-wrap: wrap; gap: 10px; } .stat { min-width: 120px; }
+.stat b { display: block; font-size: 20px; }
+</style>
+</head>
+<body data-refresh="{{ refresh or '' }}">
+<header class="row"><a href="{{ url_for('index') }}">botornot</a><span class="small">YouTube commenter scans</span>
+  <span class="small" id="live-state" role="status"></span>
+  <nav><a href="{{ url_for('index') }}">Scans</a> <a href="{{ url_for('settings_page') }}">Settings</a></nav></header>
+<main>{% block main %}{% endblock %}</main>
+{% if refresh %}
+<script>
+// Keeps the page current without reloading it: every few seconds the page is fetched again and each
+// part marked data-live is replaced by its fresh version. A part is left alone while you are editing a
+// form in it, and comments you folded or unfolded stay that way.
+(function () {
+  let every = {{ refresh|tojson }} * 1000, timer = null, failures = 0;
+  const state = document.getElementById('live-state'), last = new Map();
+  for (const part of document.querySelectorAll('[data-live]')) last.set(part.id, part.innerHTML);
+
+  function edited(part) {
+    const at = document.activeElement;
+    if (at && part.contains(at) && at.matches('input:not([type=checkbox]), select, textarea')) return true;
+    for (const el of part.querySelectorAll('input, select, textarea')) {
+      if (el.type === 'checkbox' || el.type === 'radio') { if (el.checked !== el.defaultChecked) return true; }
+      else if (el.tagName === 'SELECT') {
+        const chosen = Math.max(0, [...el.options].findIndex(o => o.defaultSelected));
+        if (el.selectedIndex !== chosen) return true;
+      } else if (el.value !== el.defaultValue) return true;
+    }
+    return false;
+  }
+
+  async function refresh() {
+    clearTimeout(timer);
+    if (!document.hidden) {
+      try {
+        const reply = await fetch(location.href, {cache: 'no-store'});
+        if (!reply.ok) throw new Error(reply.status);
+        const fresh = new DOMParser().parseFromString(await reply.text(), 'text/html');
+        for (const part of document.querySelectorAll('[data-live]')) {
+          const now = fresh.getElementById(part.id);
+          if (!now || now.innerHTML === last.get(part.id) || edited(part)) continue;
+          const open = {};
+          for (const d of part.querySelectorAll('details[data-key]')) open[d.dataset.key] = d.open;
+          part.innerHTML = now.innerHTML;
+          last.set(part.id, now.innerHTML);
+          for (const d of part.querySelectorAll('details[data-key]')) if (d.dataset.key in open) d.open = open[d.dataset.key];
+        }
+        document.title = fresh.title;
+        every = Number(fresh.body.dataset.refresh || every / 1000) * 1000;   // faster while a scan runs
+        failures = 0; state.textContent = '';
+      } catch (e) {
+        if (++failures > 1) state.textContent = 'not updating: the server is not answering';
+      }
+    }
+    timer = setTimeout(refresh, every);
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+  timer = setTimeout(refresh, every);
+})();
+</script>
+{% endif %}
+</body>
+</html>

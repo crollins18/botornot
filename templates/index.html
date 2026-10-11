@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block main %}
+{% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+<div id="live-status" data-live>
+{% if paused > 0 %}
+<div class="banner warn">Paused for another {{ (paused / 60)|round(1) }} min: {{ paused_why }}
+  <form class="inline" method="post" action="{{ url_for('resume') }}"><button>Resume now</button></form></div>
+{% endif %}
+{% if not online %}<div class="banner bad">No worker has asked for work in the last minute, so nothing will be scanned.</div>{% endif %}
+
+<div class="card stats">
+  <div class="stat"><b>{{ online|length }}</b><span class="muted small">workers online</span></div>
+  <div class="stat"><b>{{ queue.get('leased', 0) }}</b><span class="muted small">units in progress</span></div>
+  <div class="stat"><b>{{ queue.get('queued', 0) }}</b><span class="muted small">units waiting</span></div>
+  <div class="stat"><b>{{ channels|length }}</b><span class="muted small">targets</span></div>
+</div>
+</div>
+
+<h2>Targets</h2>
+<div id="live-targets" data-live><div class="card scroll"><table>
+<tr><th>Channel, video or post</th><th>Schedule and options</th><th>Last scan</th><th>Next scan</th><th></th></tr>
+{% for c in channels %}{% set s = last.get(c.last_scan) %}
+<tr>
+  <td><a href="{{ url_for('channel_page', channel_id=c.id) }}">{{ c.name or c.target }}</a>
+      <div class="small muted">{{ c.kind }} · {{ c.scans }} scans</div></td>
+  <td><form class="row" method="post" action="{{ url_for('edit_channel', channel_id=c.id) }}">
+      <select name="every_hours" aria-label="Schedule">{% for hours, label in schedules %}
+        <option value="{{ hours }}" {{ 'selected' if hours == c.every_hours }}>{{ label }}</option>{% endfor %}</select>
+      <label class="small"><input type="checkbox" name="meaning" {{ 'checked' if c.meaning }}> meaning check</label>
+      <label class="small"><input type="checkbox" name="enabled" {{ 'checked' if c.enabled }}> enabled</label>
+      <button>Save</button></form></td>
+  <td>{% if s %}<a href="{{ url_for('scan_page', scan_id=s.id) }}"><span class="pill {{ s.status }}">{{ s.status }}</span></a>
+      <span class="small muted" title="{{ s.started|stamp }}">{{ s.started|ago }}</span>
+      <div class="small">{{ s.flagged }} of {{ s.checked }} accounts with score &gt; 0</div>{% else %}<span class="muted">never</span>{% endif %}</td>
+  <td class="small" title="{{ c.next_run|stamp }}">{% if not c.enabled %}<span class="muted">disabled</span>
+      {% elif c.every_hours %}{{ c.next_run|until }}{% else %}<span class="muted">manual only</span>{% endif %}</td>
+  <td class="row"><form class="inline" method="post" action="{{ url_for('scan_now', channel_id=c.id) }}"><button class="primary">Scan now</button></form>
+      <form class="inline" method="post" action="{{ url_for('delete_channel', channel_id=c.id) }}"
+            onsubmit="return confirm('Delete this target and all of its scan results?')"><button class="danger">Delete</button></form></td>
+</tr>
+{% else %}<tr><td colspan="5" class="muted">Nothing here yet. Add a channel below.</td></tr>
+{% endfor %}
+</table></div></div>
+
+<form class="card row" method="post" action="{{ url_for('add_channel') }}">
+  <input type="text" name="target" placeholder="@SomeChannel, or a channel, video or post link" required aria-label="Channel, video or post">
+  <select name="every_hours" aria-label="Schedule">{% for hours, label in schedules %}<option value="{{ hours }}">{{ label }}</option>{% endfor %}</select>
+  <label class="small"><input type="checkbox" name="meaning"> meaning check</label>
+  <button class="primary">Add</button>
+</form>
+
+<h2>Recent scans</h2>
+<div id="live-scans" data-live>{% set show_channel = true %}{% include "_scans.html" %}</div>
+
+<h2>Workers</h2>
+<div id="live-workers" data-live><div class="card scroll"><table>
+<tr><th>Worker</th><th>Last asked for work</th><th class="num">Units done</th></tr>
+{% for w in workers %}<tr><td>{{ w.name }}</td><td>{{ w.last_seen|ago }}</td><td class="num">{{ w.units_done }}</td></tr>
+{% else %}<tr><td colspan="3" class="muted">No workers have connected yet.</td></tr>{% endfor %}
+</table></div></div>
+<p class="small muted">Scores are heuristics, not verdicts. This page has no login; keep it on your home network.</p>
+{% endblock %}

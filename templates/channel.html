@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ channel.name or channel.target }} · botornot{% endblock %}
+{% block main %}
+<h1>{{ channel.name or channel.target }}</h1>
+<p class="muted" id="live-channel" data-live>{{ channel.kind }} {{ channel.target }} · {{ schedule_names.get(channel.every_hours, 'every %g hours'|format(channel.every_hours)) }}
+  · meaning check {{ 'on' if channel.meaning else 'off' }} · {{ 'enabled' if channel.enabled else 'disabled' }}
+  {% if channel.enabled and channel.every_hours %}· next scan {{ channel.next_run|until }}{% endif %}</p>
+<form method="post" action="{{ url_for('scan_now', channel_id=channel.id) }}"><button class="primary">Scan now</button></form>
+
+<h2>Scans over time</h2>
+<div id="live-scans" data-live>{% set show_channel = false %}{% include "_scans.html" %}</div>
+
+<h2>Accounts with a score above 0 in any scan</h2>
+<div id="live-accounts" data-live><div class="card scroll"><table>
+<tr><th>Account</th><th class="num">Scans flagged in</th><th class="num">Scans seen in</th><th class="num">Highest score</th><th>Last flagged</th></tr>
+{% for r in repeat %}
+<tr><td><a href="{{ url_for('account_page', commenter_id=r.commenter_id) }}">{{ r.name }}</a> <span class="small muted">{{ r.handle or '' }}</span></td>
+    <td class="num">{{ r.flagged }}</td><td class="num">{{ r.seen }}</td>
+    <td class="num"><span class="score hit">{{ r.top }}</span></td><td title="{{ r.last_flagged|stamp }}">{{ r.last_flagged|ago }}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">None so far.</td></tr>
+{% endfor %}
+</table></div></div>
+{% endblock %}

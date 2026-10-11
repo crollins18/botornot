@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Scan #{{ scan.id }} · botornot{% endblock %}
+{% block main %}
+<h1>Scan #{{ scan.id }} of <a href="{{ url_for('channel_page', channel_id=scan.channel_id) }}">{{ scan.channel_name or scan.target }}</a></h1>
+
+<div id="live-scan" data-live>
+<div class="card">
+  <div class="row"><span class="pill {{ scan.status }}">{{ scan.status }}</span>
+    <b>{{ scan|progress }}%</b> <span class="muted">{{ scan|doing }}</span></div>
+  <div class="bar big {{ scan.status }}" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+       aria-valuenow="{{ scan|progress }}" aria-label="Scan progress"><i style="width: {{ scan|progress }}%"></i></div>
+  <div class="stats">
+    <div class="stat"><b>{{ scan.items_done }} / {{ scan.items }}</b><span class="muted small">videos/posts read</span></div>
+    <div class="stat"><b>{{ scan.commenters if scan.commenters is not none else '–' }}</b><span class="muted small">commenters found</span></div>
+    <div class="stat"><b>{{ scan.checked }} / {{ scan.cards }}</b><span class="muted small">accounts checked</span></div>
+    <div class="stat"><b>{{ scan.flagged }}</b><span class="muted small">with score &gt; 0</span></div>
+    <div class="stat"><b>{{ scan|took }}</b><span class="muted small">{{ 'so far' if scan.status == 'running' else 'duration' }}{{ ' · meaning check on' if scan.meaning }}</span></div>
+    <div class="stat"><b>{{ scan.started|ago }}</b><span class="muted small">{{ scan.started|stamp }}</span></div>
+  </div>
+</div>
+
+{% if scan.note %}<div class="banner {{ 'bad' if scan.status in ('failed', 'cancelled') else 'warn' }}">{{ scan.note }}</div>{% endif %}
+{% if scan.errors %}<div class="banner bad">
+  <b>{{ scan.errors }} error line{{ 's' if scan.errors > 1 }} in this scan's log.</b> <a href="#log-title" data-level="ERROR">Show them</a>
+  {% for e in last_errors|reverse %}<div class="small">[{{ e.source }}] {{ e.message }}</div>{% endfor %}
+</div>{% endif %}
+{% if scan.warnings %}<div class="banner warn">
+  {{ scan.warnings }} warning line{{ 's' if scan.warnings > 1 }} in this scan's log (retries, skipped items, failed cards).
+  <a href="#log-title" data-level="WARNING">Show them</a>
+</div>{% endif %}
+
+<p class="row">{% if accounts %}<a href="{{ url_for('scan_csv', scan_id=scan.id) }}">Download CSV</a>{% endif %}
+{% if scan.status == 'running' %}<form class="inline" method="post" action="{{ url_for('cancel_scan', scan_id=scan.id) }}"><button class="danger">Cancel scan</button></form>
+{% else %}<form class="inline" method="post" action="{{ url_for('delete_scan', scan_id=scan.id) }}"
+  onsubmit="return confirm('Delete this scan and its results?')"><button class="danger">Delete scan</button></form>{% endif %}</p>
+</div>
+
+<p class="small muted">To review an account, open its comments: the ones that triggered the score are marked, and each has a link
+  that opens that exact comment on YouTube, shown first as the highlighted comment. To report it there, use the ⋮ menu beside the comment.</p>
+<div id="live-results" data-live>{% include "_results.html" %}</div>
+
+<h2 id="log-title">Log</h2>
+<p class="row small">
+  <label>Show <select id="level" aria-label="Lowest log level shown">
+    <option value="DEBUG">everything (every request and wait)</option><option value="INFO" selected>progress and above</option>
+    <option value="WARNING">warnings and errors</option><option value="ERROR">errors only</option></select></label>
+  <label><input type="checkbox" id="follow" checked> follow new lines</label>
+  <span class="muted" id="log-state"></span>
+  <a href="{{ url_for('scan_log_text', scan_id=scan.id) }}" target="_blank" rel="noopener">raw text</a>
+</p>
+<pre id="log" tabindex="0" aria-label="Scan log"><noscript>The live log needs JavaScript; the raw text link above works without it.</noscript></pre>
+
+<script>
+// The log is fetched a few lines at a time, so it is not part of the page's general refresh.
+(function () {
+  const url = {{ url_for('scan_log_lines', scan_id=scan.id)|tojson }};
+  const rank = {DEBUG: 10, INFO: 20, WARNING: 30, ERROR: 40, CRITICAL: 50};
+  const box = document.getElementById('log'), level = document.getElementById('level'), follow = document.getElementById('follow');
+  const state = document.getElementById('log-state');
+  let after = 0, total = 0;
+
+  function shown(line) { return (rank[line.dataset.level] || 20) >= rank[level.value]; }
+  function refilter() { for (const line of box.children) line.hidden = !shown(line); if (follow.checked) box.scrollTop = box.scrollHeight; }
+  level.addEventListener('change', refilter);
+  document.addEventListener('click', event => {            // the "Show them" links in the banners
+    const a = event.target.closest('a[data-level]');
+    if (a) { level.value = a.dataset.level; refilter(); }
+  });
+
+  function add(l) {
+    const line = document.createElement('div'), t = new Date(l.ts * 1000);
+    line.className = l.level; line.dataset.level = l.level;
+    line.textContent = t.toLocaleTimeString([], {hour12: false}) + ' ' + l.level.padEnd(7) + ' [' + l.source + '] ' + l.message;
+    line.hidden = !shown(line);
+    box.appendChild(line);
+  }
+
+  async function poll() {
+    let data;
+    try {
+      const reply = await fetch(url + '?after=' + after, {cache: 'no-store'});
+      if (!reply.ok) throw new Error(reply.status);
+      data = await reply.json();
+    } catch (e) { state.textContent = 'connection lost; retrying'; setTimeout(poll, 5000); return; }
+    for (const l of data.lines) { add(l); after = l.id; }
+    total += data.lines.length;
+    if (data.lines.length && follow.checked) box.scrollTop = box.scrollHeight;
+    if (data.lines.length === 2000) return poll();                 // more waiting: fetch the rest straight away
+    state.textContent = total + ' lines' + (data.status === 'running' ? ' · live' : '');
+    setTimeout(poll, data.status === 'running' ? 2000 : 15000);    // a finished scan logs nothing more, but stay current
+  }
+  poll();
+})();
+</script>
+{% endblock %}

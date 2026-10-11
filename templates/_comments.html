@@ -1,0 +1,6 @@
+<details data-key="{{ a.channel_id }}{{ '-%s'|format(r.scan_id) if r is defined }}" {{ 'open' if a.score }}><summary>{{ comments|length }} comments</summary>
+{% for c in comments %}<div class="comment {{ 'match' if c.matched }}">
+  <span class="small muted">{{ c.where }}{% if c.matched %} · <span class="match">part of a flagged pair</span>{% endif %}</span><br>{{ c.text }}
+  {% if link(c) %}<div class="small"><a href="{{ link(c) }}" target="_blank" rel="noopener noreferrer">Open this comment on YouTube ↗</a></div>{% endif %}
+</div>{% endfor %}
+</details>

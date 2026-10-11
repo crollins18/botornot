@@ -1,0 +1,9 @@
+# only the program and the requirements files go into the image
+*
+!botornot.py
+!orchestrator.py
+!worker.py
+!templates
+!requirements.txt
+!requirements-service.txt
+!requirements-meaning.txt

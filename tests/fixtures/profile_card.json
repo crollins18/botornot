@@ -1,0 +1,40 @@
+{
+  "profileCard": {
+    "profileCardViewModel": {
+      "profileIdentityInfo": {
+        "profileIdentityInfoViewModel": {
+          "channelDisplayName": "Example Person",
+          "channelHandle": "@exampleperson",
+          "leftOfBulletInfo": "Joined 3 weeks ago",
+          "rightOfBulletInfo": "1.2K subscribers"
+        }
+      },
+      "profileInfo": {
+        "profileInfoViewModel": {
+          "comments": [
+            {
+              "commentInteractionViewModel": {
+                "videoTitle": "A made-up video",
+                "commentContent": "I earned a fortune last month thanks to this one adviser, message them today!",
+                "rendererContext": {"commandContext": {"onTap": {"innertubeCommand": {
+                  "getCommentsFromInboxCommand": {"videoId": "aaaaaaaaaaa", "linkedCommentId": "UgxCardComment1"}}}}}
+              }
+            },
+            {
+              "commentInteractionViewModel": {
+                "videoTitle": "Another made-up video",
+                "commentContent": "Nice video.",
+                "rendererContext": {"commandContext": {"onTap": {"innertubeCommand": {
+                  "getCommentsFromInboxCommand": {"videoId": "bbbbbbbbbbb", "linkedCommentId": "UgxCardComment2"}}}}}
+              }
+            }
+          ],
+          "profileBadgeInfoChannelWide": {
+            "profileSectionTitle": "On this channel",
+            "commentBadge": {"commentDesc": "100+ comments"}
+          }
+        }
+      }
+    }
+  }
+}

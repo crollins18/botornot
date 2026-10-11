@@ -1,0 +1,20 @@
+<div class="card scroll"><table>
+<tr><th>Score</th><th>Account</th><th>Why</th><th>Joined</th><th class="num">Subscribers</th><th>Comments here</th>
+    <th class="num" title="Text similarity of the closest pair of comments">Text</th>
+    <th class="num" title="Meaning similarity of the closest pair of comments">Meaning</th><th>Comments</th></tr>
+{% for a, comments in accounts %}
+<tr>
+  <td><span class="score {{ 'hit' if a.score else 's0' }}">{{ a.score }}</span></td>
+  <td><a href="{{ url_for('account_page', commenter_id=a.channel_id) }}">{{ a.name }}</a>
+      <div class="small muted">{{ a.handle or '' }} <a href="https://www.youtube.com/channel/{{ a.channel_id }}" target="_blank" rel="noopener noreferrer">YouTube</a></div></td>
+  <td class="small">{{ a.reasons }}{% if a.card != 'ok' %}<div class="muted">card {{ a.card }}</div>{% endif %}</td>
+  <td class="small">{{ (a.joined or '')|replace('Joined ', '') }}</td>
+  <td class="num">{{ a.subscribers if a.subscribers is not none else '' }}</td>
+  <td class="small">{{ a.comment_badge or '' }}</td>
+  <td class="num">{{ '%.2f'|format(a.max_similarity) }}</td>
+  <td class="num">{{ '%.2f'|format(a.max_meaning_similarity) if a.max_meaning_similarity is not none else '' }}</td>
+  <td>{% include "_comments.html" %}</td>
+</tr>
+{% else %}<tr><td colspan="9" class="muted">No accounts checked yet.</td></tr>
+{% endfor %}
+</table></div>

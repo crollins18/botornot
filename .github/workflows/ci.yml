@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"   # the version the container image uses
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Install
+        run: pip install -r requirements.txt -r requirements-service.txt -r requirements-dev.txt
+      - name: Compile
+        run: python -m compileall -q botornot.py orchestrator.py worker.py
+      # No test talks to YouTube: every reply is faked, so this runs the same anywhere.
+      - name: Test
+        run: python -m pytest tests -v
+
+  image:
+    name: Container image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check compose.yaml
+        run: docker compose config --quiet
+      # The small image only; the one with PyTorch for the meaning check is several GB.
+      - name: Build
+        run: docker build -t botornot .
+      - name: The program loads inside the image
+        run: >-
+          docker run --rm --entrypoint python botornot -c
+          "import sys; sys.path.insert(0, '/app'); import botornot, orchestrator, worker; print('ok')"
+
+  playbook:
+    name: Ansible playbook
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ansible
+        run: |
+          pipx install ansible-core
+          ansible-galaxy collection install community.docker
+      - name: Syntax check
+        run: ansible-playbook -i ansible/inventory.example.ini ansible/deploy.yml ansible/manage.yml --syntax-check

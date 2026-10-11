@@ -1,0 +1,11 @@
+---
+# Shared by deploy.yml and manage.yml. Override any of these with -e name=value.
+botornot_dir: "{{ ansible_facts['env']['HOME'] }}/botornot"   # where the source is kept on the server
+botornot_port: 8080        # the web page: http://<server>:<port>/botornot/
+botornot_workers: 4        # worker containers. More does not mean more requests to YouTube (the orchestrator
+                           # sets the pace); each worker that has used the meaning check holds about 2 GB of RAM.
+botornot_log: INFO         # what the containers print: DEBUG, INFO, WARNING or ERROR
+botornot_env:              # how the values above reach compose.yaml
+  BOTORNOT_PORT: "{{ botornot_port }}"
+  BOTORNOT_WORKERS: "{{ botornot_workers }}"
+  BOTORNOT_LOG: "{{ botornot_log }}"

@@ -1,0 +1,76 @@
+---
+# Deploy the botornot service to your Docker server(s): copy the source there, build both
+# images on the server, and (re)start the containers.
+#
+#   ansible-playbook -i ansible/inventory.ini ansible/deploy.yml
+#   ansible-playbook -i ansible/inventory.ini ansible/deploy.yml -e botornot_workers=2
+#
+# Run it after every change to the source: the containers run a copy of the code, so they
+# stay on the old version until the images are rebuilt. Scan data is kept across deploys.
+# Everything else (restart, logs, clean-up, removal) is in manage.yml.
+#
+# Needs on the server: Docker with the compose plugin, and a login user who may use Docker.
+# Needs here: the community.docker collection (ansible-galaxy collection install community.docker).
+- name: Deploy the botornot service
+  hosts: docker_servers
+  gather_facts: true
+  collections:
+    - community.docker
+  vars_files:
+    - vars.yml
+
+  vars:
+    botornot_files:
+      - botornot.py
+      - orchestrator.py
+      - worker.py
+      - requirements.txt
+      - requirements-service.txt
+      - requirements-meaning.txt
+      - Dockerfile
+      - .dockerignore
+      - compose.yaml
+
+  tasks:
+    - name: Ensure the source directory exists on the server
+      ansible.builtin.file:
+        path: "{{ botornot_dir }}/templates"
+        state: directory
+        mode: "0755"
+
+    - name: Copy the program
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../{{ item }}"
+        dest: "{{ botornot_dir }}/{{ item }}"
+        mode: "0644"
+      loop: "{{ botornot_files }}"
+
+    - name: Copy the web page templates
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../templates/"
+        dest: "{{ botornot_dir }}/templates/"
+        mode: "0644"
+
+    - name: Build the images and start the containers
+      community.docker.docker_compose_v2:
+        project_src: "{{ botornot_dir }}"
+        build: always
+        remove_orphans: true
+        state: present
+      environment: "{{ botornot_env }}"
+      register: compose_result
+
+    - name: Wait for the web page to answer
+      ansible.builtin.uri:
+        url: "http://localhost:{{ botornot_port }}/botornot/healthz"
+      register: health
+      until: health.status == 200
+      retries: 20
+      delay: 3
+
+    - name: Display deployment confirmation
+      ansible.builtin.debug:
+        msg: >-
+          botornot is running on {{ inventory_hostname }}:
+          {{ compose_result.containers | map(attribute='Name') | sort | join(', ') }}.
+          Web page: http://{{ ansible_host | default(inventory_hostname) }}:{{ botornot_port }}/botornot/

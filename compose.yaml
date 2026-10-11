@@ -1,0 +1,37 @@
+# The botornot service: one orchestrator and a few workers.
+#   on this machine:   docker compose up -d --build        then open http://localhost:8080/botornot/
+#   on a server:       ansible-playbook -i ansible/inventory.ini ansible/deploy.yml
+# The web page has no login; keep it on a home network.
+name: botornot
+
+services:
+  orchestrator:            # web page, schedule and work queue; decides when each request to YouTube may go out
+    build: .
+    image: botornot
+    entrypoint: ["python", "/app/orchestrator.py"]
+    ports: ["${BOTORNOT_PORT:-8080}:8080"]
+    volumes: ["data:/data"]           # the database, /data/botornot.db
+    environment:
+      BOTORNOT_LOG: ${BOTORNOT_LOG:-INFO}
+    restart: unless-stopped
+
+  worker:                  # does the units of work; all alike, keep nothing
+    build:
+      context: .
+      args: {MEANING: "1"}
+    image: botornot:meaning
+    entrypoint: ["python", "/app/worker.py"]
+    volumes: ["models:/models"]       # the meaning model, downloaded once and shared
+    environment:
+      BOTORNOT_ORCHESTRATOR: http://orchestrator:8080/botornot
+      BOTORNOT_LOG: ${BOTORNOT_LOG:-INFO}
+      OMP_NUM_THREADS: "1"            # one CPU core per worker for the meaning model
+    deploy:
+      replicas: ${BOTORNOT_WORKERS:-4}  # more workers do not mean more requests: the orchestrator sets the pace.
+                                        # Each one that has used the meaning check holds about 2 GB of RAM.
+    depends_on: [orchestrator]
+    restart: unless-stopped
+
+volumes:
+  data: {name: botornot-data}
+  models: {name: botornot-models}

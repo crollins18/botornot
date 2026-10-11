@@ -1,0 +1,148 @@
+---
+# Look after a deployed botornot service. Pick what to do with -e do=...
+#
+#   ansible-playbook -i ansible/inventory.ini ansible/manage.yml -e do=status     (the default)
+#
+#   status     containers, whether the web page answers, and how much disk Docker uses
+#   logs       the last lines the containers printed (-e lines=200 for more)
+#   restart    restart the containers as they are (no rebuild; use deploy.yml after changing the source)
+#   stop       stop the containers; scans in progress carry on after `start`
+#   start      start them again
+#   clean      free disk space on the server: Docker's build cache and old, untagged botornot images.
+#              Nothing in use is touched, and scan data stays.
+#   teardown   remove the containers and their network. Images, scan data, the meaning model and the
+#              source stay, so deploy.yml brings everything back as it was.
+#   purge      teardown, then also delete the images, the scan data, the meaning model and the source
+#              on the server. Cannot be undone; needs -e confirm=yes.
+- name: Manage the botornot service
+  hosts: docker_servers
+  gather_facts: true
+  collections:
+    - community.docker
+  vars_files:
+    - vars.yml
+
+  vars:
+    do: status
+    lines: 60
+    botornot_actions: [status, logs, restart, stop, start, clean, teardown, purge]
+    botornot_states: {restart: restarted, stop: stopped, start: present}
+
+  tasks:
+    - name: Check what was asked for
+      ansible.builtin.assert:
+        that: do in botornot_actions
+        fail_msg: "do={{ do }} is not one of: {{ botornot_actions | join(', ') }}"
+        quiet: true
+
+    - name: Check that purge was confirmed
+      ansible.builtin.assert:
+        that: confirm | default('') == 'yes'
+        fail_msg: >-
+          purge deletes the scan data, the meaning model, the images and the source on
+          {{ inventory_hostname }}. If that is what you want, add -e confirm=yes
+        quiet: true
+      when: do == 'purge'
+
+    - name: See whether the service's source is on the server
+      ansible.builtin.stat:
+        path: "{{ botornot_dir }}/compose.yaml"
+      register: compose_file
+
+    - name: "Containers: {{ do }}"
+      community.docker.docker_compose_v2:
+        project_src: "{{ botornot_dir }}"
+        state: "{{ botornot_states[do] }}"
+      environment: "{{ botornot_env }}"
+      when: do in botornot_states
+
+    - name: Remove the containers and their network
+      community.docker.docker_compose_v2:
+        project_src: "{{ botornot_dir }}"
+        state: absent
+        remove_orphans: true
+      environment: "{{ botornot_env }}"
+      when: do in ['teardown', 'purge'] and compose_file.stat.exists
+
+    - name: Delete the images
+      community.docker.docker_image:
+        name: "{{ item }}"
+        state: absent
+        force_absent: true
+      loop: ["botornot:latest", "botornot:meaning"]
+      when: do == 'purge'
+
+    - name: Delete the scan data and the meaning model
+      community.docker.docker_volume:
+        name: "{{ item }}"
+        state: absent
+      loop: [botornot-data, botornot-models]
+      when: do == 'purge'
+
+    - name: Delete the source on the server
+      ansible.builtin.file:
+        path: "{{ botornot_dir }}"
+        state: absent
+      when: do == 'purge'
+
+    - name: Free disk space (build cache and old, untagged botornot images)
+      community.docker.docker_prune:
+        images: true
+        images_filters:
+          dangling: true
+          label: app=botornot
+        builder_cache: true
+      register: pruned
+      when: do in ['clean', 'purge']
+
+    - name: Show what was freed
+      ansible.builtin.debug:
+        msg: >-
+          Freed {{ ((pruned.images_space_reclaimed | default(0)) / 1048576) | round | int }} MB of old images
+          and {{ ((pruned.builder_cache_space_reclaimed | default(0)) / 1048576) | round | int }} MB of build cache.
+      when: do in ['clean', 'purge']
+
+    - name: Read the containers' last log lines
+      ansible.builtin.command: docker compose -p botornot logs --no-color --tail {{ lines | int }}
+      register: container_logs
+      changed_when: false
+      when: do == 'logs'
+
+    - name: Show the log lines
+      ansible.builtin.debug:
+        var: container_logs.stdout_lines
+      when: do == 'logs'
+
+    - name: List the containers
+      ansible.builtin.command: >-
+        docker ps -a --filter label=com.docker.compose.project=botornot
+        --format {% raw %}'{{.Names}}: {{.Status}}'{% endraw %}
+      register: containers
+      changed_when: false
+      when: do != 'logs'
+
+    - name: Ask the web page whether it is up
+      ansible.builtin.uri:
+        url: "http://localhost:{{ botornot_port }}/botornot/healthz"
+      register: health
+      failed_when: false
+      when: do == 'status'
+
+    - name: See how much disk Docker uses
+      ansible.builtin.command: docker system df
+      register: disk
+      changed_when: false
+      when: do == 'status'
+
+    - name: Show the status
+      ansible.builtin.debug:
+        msg:
+          - "Containers: {{ containers.stdout_lines | sort | join('; ') | default('none', true) }}"
+          - "Web page http://{{ ansible_host | default(inventory_hostname) }}:{{ botornot_port }}/botornot/ : {{ 'up' if health.status | default(0) == 200 else 'not answering' }}"
+          - "{{ disk.stdout_lines }}"
+      when: do == 'status'
+
+    - name: Show which containers are left
+      ansible.builtin.debug:
+        msg: "Containers after {{ do }}: {{ containers.stdout_lines | sort | join('; ') | default('none', true) }}"
+      when: do not in ['status', 'logs']
